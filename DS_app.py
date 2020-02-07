@@ -31,6 +31,7 @@ Station = Base.classes.station
 # Calculate needed dates
 session = Session(engine)
 last_date = session.query(Measurement.date).order_by(Measurement.date.desc()).first()
+first_date = session.query(Measurement.date).order_by(Measurement.date).first()
 twelve_months_ago = dt.datetime.strptime(last_date[0], '%Y-%m-%d') - dt.timedelta(days=365)
 session.close()
 
@@ -51,12 +52,20 @@ app = Flask(__name__)
 def index():
     return  (
         f"Welcome to my App!<br/>"
+        f"<br/>"
         f"<h3>Available Routes:</h3><br/>"
         f"/api/v1.0/precipitation<br/>"
+        f"<br/>"
         f"/api/v1.0/stations<br/>"
+        f"<br/>"
         f"/api/v1.0/tobs<br/>"
-        f"/api/v1.0/<start><br/>"
-        f"/api/v1.0/<start>/<end>"
+        f"<br/>"
+        f"/api/v1.0/start_date<br/>"
+        f"For the previous route, you need to input the start_date you want to analyse in the format 'yyyy-mm-dd'<br/>"
+        f"This will give you the min, avg and max of the period between the date you define and {last_date[0]}<br/>"
+        f"<br/>"
+        f"/api/v1.0/start_date/end_date<br/>"
+        f"for the previous route, you need to input the start_date and end_date you want to analyse in the format 'yyyy-mm-dd'"
     )
 
 @app.route("/api/v1.0/precipitation")
@@ -114,9 +123,12 @@ def tobs():
 @app.route("/api/v1.0/<start>")
 def tobs_stats_search_start(start):
 
-    if start > str(last_date[0]):
-        return "Sorry, that date is outside of our database's date range"
-    
+    if start > str(last_date[0]) or start < str(first_date[0]):
+        return (
+            f"Sorry, that start date is outside of our database's date range.<br/>"
+            f"Please choose a start date between {first_date[0]} and {last_date[0]}."
+        )
+
     else:
         # Create our session (link) from Python to the DB
         session = Session(engine)
@@ -126,23 +138,31 @@ def tobs_stats_search_start(start):
         filter(Measurement.date >= start).all()
         session.close()
 
-        return jsonify(results_start_date)
+        return (
+            f"Minimum Temperature: {results_start_date[0][0]}<br/>"
+            f"Average Temperature: {round(results_start_date[0][1],2)}<br/>"
+            f"Maximum Temperature: {results_start_date[0][2]}<br/>"
+            )
 
 @app.route("/api/v1.0/<start>/<end>")
 def tobs_stats_search_start_end(start, end):
     # Create our session (link) from Python to the DB
     session = Session(engine)
 
-    if start > str(last_date[0]):
-        return "Sorry, that date is outside of our database's date range"
+    if start > str(last_date[0]) or start < str(first_date[0]):
+        return (
+            f"Sorry, that start date is outside of our database's date range.<br/>"
+            f"Please choose a start date between {first_date[0]} and {last_date[0]}."
+        )
+    
     elif end > str(last_date[0]):
         # query for the dates and temperature observations from the date input by user
         results_start_date = session.query(func.min(Measurement.tobs), func.avg(Measurement.tobs), func.max(Measurement.tobs)).\
         filter(Measurement.date >= start).all()
         
         return (
-            f"Sorry, the end date is outside of our database's date range<br/>"
-            f"We will give you the results until {last_date[0]}<br/>" 
+            f"Sorry, the end date is outside of our database's date range.<br/>"
+            f"We will give you the results until {last_date[0]}.<br/>" 
             f"Minimum Temperature: {results_start_date[0][0]}<br/>"
             f"Average Temperature: {round(results_start_date[0][1],2)}<br/>"
             f"Maximum Temperature: {results_start_date[0][2]}<br/>"
@@ -155,7 +175,11 @@ def tobs_stats_search_start_end(start, end):
         filter(Measurement.date >= start).filter(Measurement.date <= end).all()
 
         #Return a JSON list of Temperature Observations (tobs) for the previous year
-        return jsonify(results_start_end_date)
+        return (
+            f"Minimum Temperature: {results_start_end_date[0][0]}<br/>"
+            f"Average Temperature: {round(results_start_end_date[0][1],2)}<br/>"
+            f"Maximum Temperature: {results_start_end_date[0][2]}<br/>"
+            )
 
     session.close()
 
